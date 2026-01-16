@@ -3,123 +3,52 @@ from database.dao import DAO
 
 class Model:
     def __init__(self):
+        self.nodes=[]
+        self.dict_nodes={}
+        self.edges=[]
         self.G=nx.Graph()
-        self._nodes=[]
-        self._edges=[]
-
-        self.dict_album={}
-        self.lista_album=[]
-        self.lista_connessioni=[]
-
         self.soluzione_migliore=[]
+
 
     def build_graph(self,durata):
+        self.nodes=[]
         self.G.clear()
-        self._nodes=[]
-        self._edges=[]
-        self.lista_album = []
-        self.lista_connessioni = []
-        self.dict_album = {}
-        self._album_cercato = None
+        self.dict_nodes={}
+        self.edges=[]
+        nodi=DAO.get_nodes(durata)
+        for nodo in nodi:
+            self.nodes.append(nodo)
+            self.dict_nodes[nodo.id] = nodo
+        self.G.add_nodes_from(self.nodes)
+        connessioni=DAO.get_connessioni(self.dict_nodes)
+        for connessione in connessioni:
+            self.edges.append(connessione)
 
-        album=DAO.get_album()
-        for a in album:
-            if (int(a.durata)/60000)>int(durata):
-                self.lista_album.append(a)
-                self.dict_album[a.id] = a
+        self.G.add_edges_from(self.edges)
 
-        self.lista_connessioni=DAO.get_connessioni(self.dict_album)
+    def get_componente(self,album):
+        if album not in self.G:
+            return []
+        return list(nx.node_connected_component(self.G, album))
 
-        for album in self.lista_album:
-            self._nodes.append(album)
-        self.G.add_nodes_from(self._nodes)
-
-        self.G.add_edges_from(self.lista_connessioni)
-
-    def get_num_durata_neighbors(self,a0):
-        connessi = nx.node_connected_component(self.G, a0)
-        dimensione=len(connessi)
-        durata_totale=0
-        for album in connessi:
-            durata_totale+=float(album.durata)
-        durata_minuti=durata_totale/60000
-
-        return dimensione,durata_minuti
-
-    def cerca_set_album(self,a1,dtot):
-        conn=[]
-        connessi=nx.node_connected_component(self.G, a1)
-        for c in connessi:
-            conn.append(c)
-        conn.remove(a1)
-        conn.sort(key=lambda a: a.durata)
-
+    def get_percorso_migliore(self,a1,distanza):
+        componente=self.get_componente(a1)
         self.soluzione_migliore=[]
-        parziale=[a1]
+        self.ricorsione(componente,[a1],a1.durata,distanza)
+        return self.soluzione_migliore
 
-        durata_minuti_a1=float(a1.durata)/60000
 
-        self.ricorsione(parziale,conn, dtot)
-        durata_tot_soluzione=sum(float(a.durata) for a in self.soluzione_migliore)/60000
 
-        return self.soluzione_migliore,durata_tot_soluzione
-
-    def ricorsione(self,parziale,connessi, dtot):
-
-        durata_corrente=sum(float(a.durata) for a in parziale)/60000
-
+    def ricorsione(self,componente,parziale,durata_corrente,durata_massima):
         if len(parziale)>len(self.soluzione_migliore):
-            self.soluzione_migliore=list(parziale)
+            self.soluzione_migliore=parziale.copy()
 
-        if len(connessi)==0:
-            return
-        lungh_conn=len(connessi)
-        if len(parziale)+lungh_conn<=len(self.soluzione_migliore):
-            return
-
-        for i in range(len(connessi)):
-
-            album_attuale=connessi[i]
-            durata_min=float(album_attuale.durata)/60000
-
-            if durata_corrente+durata_min<=dtot:
-                parziale.append(album_attuale)
-
-                self.ricorsione(parziale,connessi[i+1:], dtot)
-
+        for album in componente:
+            if album in parziale:
+                continue
+            nuova_durata=durata_corrente+album.durata
+            if nuova_durata<=durata_massima:
+                parziale.append(album)
+                self.ricorsione(componente,parziale,nuova_durata,durata_massima)
                 parziale.pop()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def get_nodes(self):
-        return self.G.nodes()
-
-    def get_edges(self):
-        return list(self.G.edges(data=True))
-
-    def get_num_of_nodes(self):
-        return self.G.number_of_nodes()
-
-    def get_num_of_edges(self):
-        return self.G.number_of_edges()
-
-
 
